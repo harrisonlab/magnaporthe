@@ -35,7 +35,7 @@ done
 
 
 ```bash
-for Assembly in $(ls assembly/external/*/*/*.fa); do
+for Assembly in $(ls assembly/external/*/*/*.fa | grep 'MG04'); do
 Strain=$(echo $Assembly | rev | cut -f2 -d '/' | rev)
 Organism=$(echo $Assembly | rev | cut -f3 -d '/' | rev)
 Jobs=$(qstat | grep 'sub_busco' | grep 'qw' | wc -l)
@@ -58,31 +58,61 @@ qsub $ProgDir/sub_busco3.sh $Assembly $BuscoDB $OutDir
 done
 ```
 
+```bash
+printf "Strain\tComplete\tDuplicated\tFragmented\tMissing\tTotal\n"
+for File in $(ls gene_pred/busco/*/*/assembly/run_*/short_summary_*.txt); do  
+FileName=$(basename $File)
+Strain=$(echo $File | cut -f4 -d '/')
+Complete=$(cat $File | grep "(C)" | cut -f2)
+Duplicated=$(cat $File | grep "(D)" | cut -f2)
+Fragmented=$(cat $File | grep "(F)" | cut -f2)
+Missing=$(cat $File | grep "(M)" | cut -f2)
+Total=$(cat $File | grep "Total" | cut -f2)
+printf "$Strain\t$Complete\t$Duplicated\t$Fragmented\t$Missing\t$Total\n"
+done
+```
+```
+D15_s47 3612    0       77      36      3725
+D1_s11  3616    0       76      33      3725
+D8_s15  3614    0       76      35      3725
+E17     3609    1       84      32      3725
+E1      3614    0       81      30      3725
+E34     3568    9       109     48      3725
+E7      3613    3       84      28      3725
+K13_67  3608    0       86      31      3725
+K23_123 3641    3       30      54      3725
+K38     3603    0       89      33      3725
+K48_115n        3605    4       85      35      3725
+K5      3604    2       85      36      3725
+T11     3607    0       83      35      3725
+T12     3607    0       85      33      3725
+T17     3610    0       83      32      3725
+T5      3613    0       76      36      3725
+U13     3618    2       74      33      3725
+U47     3616    0       75      34      3725
+EI      1415    0       871     1439    3725
+FJ81278 3649    2       28      48      3725
+Guy11   3647    1       30      48      3725
+M070-15 3655    2       26      44      3725
+MG03    3457    2       166     102     3725
+MG04    1834    0       1163    728     3725
+MG12    3585    2       79      61      3725
+NC      3674    0       21      30      3725
+SI      1957    0       841     927     3725
+WT      2099    1       819     807     3725
+```
+
 
 # 1 Find single copy busco genes in P.cactorum assemblies
 
-Firstly, busco results from P414 in /data/scratch/armita/idris
-was copied into the idris project folder
 
-```bash
-cd /home/groups/harrisonlab/project_files/alternaria
-for MinionDir in $(ls -d /data/scratch/armita/alternaria/repeat_masked/*/*/filtered_contigs/run* | grep '1166'); do
-  OrgStrain=$(echo $MinionDir | cut -f7,8 -d '/')
-  echo $OrgStrain
-  mkdir -p gene_pred/busco/$OrgStrain/assembly
-  cp -r $MinionDir gene_pred/busco/$OrgStrain/assembly/.
-done
-```
 
 Create a list of all BUSCO IDs
 
 ```bash
-cd /home/groups/harrisonlab/project_files/alternaria
-
-# pushd /home/sobczm/bin/BUSCO_v1.22/fungi/hmms
-OutDir=analysis/popgen/busco_phylogeny
+OutDir=analysis_AA/popgen/busco_phylogeny2
 mkdir -p $OutDir
-BuscoDb="ascomycota_odb9"
+BuscoDb="sordariomyceta_odb9"
 ls -1 /home/groups/harrisonlab/dbBusco/$BuscoDb/hmms/*hmm | rev | cut -f1 -d '/' | rev | sed -e 's/.hmm//' > $OutDir/all_buscos_"$BuscoDb".txt
 ```
 
@@ -92,21 +122,21 @@ Then create a fasta file containing all the aligned reads for each busco gene fo
 alignment later.
 
 ```bash
-printf "" > analysis/popgen/busco_phylogeny/single_hits.txt
-for Busco in $(cat analysis/popgen/busco_phylogeny/all_buscos_*.txt); do
+printf "" > analysis_AA/popgen/busco_phylogeny2/single_hits.txt
+for Busco in $(cat analysis_AA/popgen/busco_phylogeny2/all_buscos_*.txt); do
 echo $Busco
-OutDir=analysis/popgen/busco_phylogeny/$Busco
+OutDir=analysis_AA/popgen/busco_phylogeny2/$Busco
 mkdir -p $OutDir
-for Fasta in $(ls gene_pred/busco/*/*/assembly/*/single_copy_busco_sequences/$Busco*.fna | grep -v -e 'Alternaria_destruens' -e 'Alternaria_porri' -e 'A.gaisen'); do
+for Fasta in $(ls gene_pred/busco/*/*/assembly/*/single_copy_busco_sequences/$Busco*.fna | grep -v -w  -e 'NC'); do
 # for Fasta in $(ls gene_pred/busco/*/*/assembly/*/single_copy_busco_sequences/$Busco*.fna | grep -v -e 'A.gaisen' -e 'dauci' -e 'Alternaria_destruens' -e 'Alternaria_porri' -e 'BMP0308' -e 'BMP2338'); do
 Strain=$(echo $Fasta | rev | cut -f5 -d '/' | rev)
 Organism=$(echo $Fasta | rev | cut -f6 -d '/' | rev)
 FileName=$(basename $Fasta)
-cat $Fasta | sed "s/:.*.fasta:/:"$Organism"_"$Strain":/g" | sed "s/:.*.fa:/:"$Organism"_"$Strain":/g" > $OutDir/"$Organism"_"$Strain"_"$Busco".fasta
+cat $Fasta | sed "s/:.*.fasta:/:"$Strain":/g" | sed "s/:.*.fa:/:"$Strain":/g" > $OutDir/"$Organism"_"$Strain"_"$Busco".fasta
 done
 cat $OutDir/*_*_"$Busco".fasta > $OutDir/"$Busco"_appended.fasta
 SingleBuscoNum=$(cat $OutDir/"$Busco"_appended.fasta | grep '>' | cut -f2 -d ':' | sort | uniq | wc -l)
-printf "$Busco\t$SingleBuscoNum\n" >> analysis/popgen/busco_phylogeny/single_hits.txt
+printf "$Busco\t$SingleBuscoNum\n" >> analysis_AA/popgen/busco_phylogeny2/single_hits.txt
 done
 ```
 
@@ -114,15 +144,15 @@ If all isolates have a single copy of a busco gene, move the appended fasta to
 a new folder
 
 ```bash
-  OutDir=analysis/popgen/busco_phylogeny/alignments
+  OutDir=analysis_AA/popgen/busco_phylogeny2/alignments
   mkdir -p $OutDir
-  OrganismNum=$(cat analysis/popgen/busco_phylogeny/single_hits.txt | cut -f2 | sort -nr | head -n1)
-  for Busco in $(cat analysis/popgen/busco_phylogeny/all_buscos_*.txt); do
+  OrganismNum=$(cat analysis_AA/popgen/busco_phylogeny2/single_hits.txt | cut -f2 | sort -nr | head -n1)
+  for Busco in $(cat analysis_AA/popgen/busco_phylogeny2/all_buscos_*.txt); do
   echo $Busco
-  HitNum=$(cat analysis/popgen/busco_phylogeny/single_hits.txt | grep "$Busco" | cut -f2)
+  HitNum=$(cat analysis_AA/popgen/busco_phylogeny2/single_hits.txt | grep "$Busco" | cut -f2)
   if [ $HitNum == $OrganismNum ]; then
-    # cp analysis/popgen/busco_phylogeny/$Busco/"$Busco"_appended.fasta $OutDir/.
-    cat analysis/popgen/busco_phylogeny/$Busco/"$Busco"_appended.fasta \
+    # cp analysis_AA/popgen/busco_phylogeny2/$Busco/"$Busco"_appended.fasta $OutDir/.
+    cat analysis_AA/popgen/busco_phylogeny2/$Busco/"$Busco"_appended.fasta \
     | sed "s/$Busco://g" \
     | sed "s/genome.ctg.fa://g" \
     | sed "s/_contigs_unmasked.fa//g" \
@@ -137,7 +167,7 @@ Submit alignment for single copy busco genes with a hit in each organism
 
 
 ```bash
-  AlignDir=analysis/popgen/busco_phylogeny/alignments
+  AlignDir=analysis_AA/popgen/busco_phylogeny2/alignments
   CurDir=$PWD
   cd $AlignDir
   ProgDir=/home/armita/git_repos/emr_repos/scripts/popgen/phylogenetics
@@ -149,9 +179,9 @@ Trimming sequence alignments using Trim-Al
 * Note - automated1 mode is optimised for ML tree reconstruction
 
 ```bash
-  OutDir=analysis/popgen/busco_phylogeny/trimmed_alignments
+  OutDir=analysis_AA/popgen/busco_phylogeny2/trimmed_alignments
   mkdir -p $OutDir
-  for Alignment in $(ls analysis/popgen/busco_phylogeny/alignments/*_appended_aligned.fasta); do
+  for Alignment in $(ls analysis_AA/popgen/busco_phylogeny2/alignments/*_appended_aligned.fasta); do
     TrimmedName=$(basename $Alignment .fasta)"_trimmed.fasta"
     echo $Alignment
     trimal -in $Alignment -out $OutDir/$TrimmedName -automated1
@@ -159,7 +189,7 @@ Trimming sequence alignments using Trim-Al
 ```
 
 ```bash
-for Alignment in $(ls analysis/popgen/busco_phylogeny/trimmed_alignments/*aligned_trimmed.fasta); do
+for Alignment in $(ls analysis_AA/popgen/busco_phylogeny2/trimmed_alignments/*aligned_trimmed.fasta); do
 Jobs=$(qstat | grep 'sub_RAxML' | grep 'qw' | wc -l)
 while [ $Jobs -gt 2 ]; do
 sleep 2s
@@ -169,7 +199,7 @@ done
 printf "\n"
 echo $Prefix
 Prefix=$(basename $Alignment | cut -f1 -d '_')
-OutDir=analysis/popgen/busco_phylogeny/RAxML/$Prefix
+OutDir=analysis_AA/popgen/busco_phylogeny2/RAxML/$Prefix
 ProgDir=/home/armita/git_repos/emr_repos/tools/seq_tools/phylogenetics
 qsub $ProgDir/sub_RAxML.sh $Alignment $Prefix $OutDir
 done
@@ -186,26 +216,32 @@ https://github.com/smirarab/ASTRAL/blob/master/astral-tutorial.md#running-with-u
 
 
 ```bash
-OutDir=analysis/popgen/busco_phylogeny/ASTRAL
+OutDir=analysis_AA/popgen/busco_phylogeny2/ASTRAL
 mkdir -p $OutDir
-# cat analysis/popgen/busco_phylogeny/RAxML/*/RAxML_bestTree.* > $OutDir/Pcac_phylogeny.appended.tre
+# cat analysis_AA/popgen/busco_phylogeny2/RAxML/*/RAxML_bestTree.* > $OutDir/Pcac_phylogeny.appended.tre
 # Taxa names were noted to be incorrect at this point and were corrected
-cat analysis/popgen/busco_phylogeny/RAxML/*/RAxML_bestTree.*  | sed -r "s/CTG.\w+:/:/g" | sed 's/__/_/g' > $OutDir/Alt_phylogeny.appended.tre
+cat analysis_AA/popgen/busco_phylogeny2/RAxML/*/RAxML_bestTree.*  | sed -r "s/CTG.\w+:/:/g" | sed 's/__/_/g' | sed -r "s/M_\w*_//g" > $OutDir/Mg_phylogeny.appended.tre
 # InTree=$(ls /home/armita/prog/Astral/Astral/test_data/song_primates.424.gene.tre)
 # -
 # Trimm back branches that have less than 10% bootstrap support for each tree
 # in the given file
 # -
-/home/armita/prog/newick_utilities/newick_utils/src/nw_ed $OutDir/Alt_phylogeny.appended.tre 'i & b<=10' o > $OutDir/Alt_phylogeny.appended.trimmed.tre
+/home/armita/prog/newick_utilities/newick_utils/src/nw_ed $OutDir/Mg_phylogeny.appended.tre 'i & b<=10' o > $OutDir/Mg_phylogeny.appended.trimmed.tre
 # -
 # Calculate combined tree
 # -
 ProgDir=/home/armita/prog/Astral/Astral
 # java -Xmx1000M -jar $ProgDir/astral.5.6.1.jar -i $OutDir/Pcac_phylogeny.appended.trimmed.tre -o $OutDir/Pcac_phylogeny.consensus.tre | tee 2> $OutDir/Pcac_phylogeny.consensus.log
-java -Xmx1000M -jar $ProgDir/astral.5.6.1.jar -i $OutDir/Alt_phylogeny.appended.tre -o $OutDir/Alt_phylogeny.consensus.tre | tee 2> $OutDir/Alt_phylogeny.consensus.log
-java -Xmx1000M -jar $ProgDir/astral.5.6.1.jar -q $OutDir/Alt_phylogeny.consensus.tre -i $OutDir/Alt_phylogeny.appended.tre -o $OutDir/Alt_phylogeny.consensus.scored.tre 2> $OutDir/Alt_phylogeny.consensus.scored.log
+java -Xmx1000M -jar $ProgDir/astral.5.6.1.jar -i $OutDir/Mg_phylogeny.appended.tre -o $OutDir/Mg_phylogeny.consensus.tre | tee 2> $OutDir/Mg_phylogeny.consensus.log
+java -Xmx1000M -jar $ProgDir/astral.5.6.1.jar -q $OutDir/Mg_phylogeny.consensus.tre -i $OutDir/Mg_phylogeny.appended.tre -o $OutDir/Mg_phylogeny.consensus.scored.tre 2> $OutDir/Mg_phylogeny.consensus.scored.log
 ```
 
+```
+This is ASTRAL version 5.6.1
+Gene trees are treated as unrooted
+944 trees read from analysis_AA/popgen/busco_phylogeny2/ASTRAL/Mg_phylogeny.appended.tre
+All output trees will be *arbitrarily* rooted at 67
+```
 
 GGtree was used to make a plot.
 
@@ -219,12 +255,13 @@ The consensus tree was downloaded to my local machine
 * Terminal branch lengths are meanlingless from ASTRAL and should all be set to an arbitrary value. This will be done by geneious (set to 1), but it also introduces a branch length of 2 for one isolate that needs to be corrected with sed
 
 ```bash
-cat Alt_phylogeny.consensus.scored.geneious.tre | sed 's/:2/:1/g' > Alt_phylogeny.consensus.scored.geneious2.tre
+cat /Users/armita/Downloads/Mg/Mg_phylogeny.consensus.scored.geneious.tre | sed 's/:2.0/:1.0/g' | sed 's/:1.0/:0.1/g' > Mg_phylogeny.consensus.scored.geneious2.tre
+# cat /Users/armita/Downloads/Mg/Mg_phylogeny.consensus.scored.geneious.tre | sed 's/:2.0/:1.0/g' | sed 's/:1.0/:0.1/g' | sed 's/FJ81278:0.9999999999999996/FJ81278:0.1/g'> Mg_phylogeny.consensus.scored.geneious2.tre
 ```
 
 
 ```r
-setwd("/Users/armita/Downloads/Aalt/ASTRAL")
+setwd("/Users/armita/Downloads/Mg")
 #===============================================================================
 #       Load libraries
 #===============================================================================
@@ -236,18 +273,19 @@ library(ggtree)
 library(phangorn)
 library(treeio)
 
-tree <- read.tree("/Users/armita/Downloads/Aalt/ASTRAL/expanded/Alt_phylogeny.consensus.scored.geneious2.tre")
+tree <- read.tree("/Users/armita/Downloads/Mg/Mg_phylogeny.consensus.scored.geneious2.tre")
 
-mydata <- read.csv("/Users/armita/Downloads/Aalt/ASTRAL/traits.csv", stringsAsFactors=FALSE)
-rownames(mydata) <- mydata$Isolate
+mydata <- read.csv("/Users/armita/Downloads/Mg/Andrew_traits2.csv", stringsAsFactors=FALSE,  na.strings=c("","NA"))
+rownames(mydata) <- mydata$"Names.of.isolates.as.they.appear.in.assembly.files"
 mydata <- mydata[match(tree$tip.label,rownames(mydata)),]
 
 t <- ggtree(tree, aes(linetype=nodes$support)) # Core tree
 # Adjust terminal branch lengths:
 branches <- t$data
-tree$edge.length[branches$isTip] <- 1.0
+tree$edge.length[branches$isTip] <- 0.1
+
 #Tree <- branches$branch.length
-#rescale_tree(t, branches$branch.length)
+# rescale_tree(t, branches$branch.length)
 
 t <- t + geom_treescale(offset=-1.0, fontsize = 3) # Add scalebar
 # t <- t + xlim(0, 0.025) # Add more space for labels
@@ -260,17 +298,17 @@ t <- t %<+% mydata # Allow colouring of nodes by another df
 scale_color_manual(values=c("gray39","black")) # colours as defined by col2rgb
 
 tips <- data.frame(t$data)
-tips$label <- tips$ID
-t <- t + geom_tiplab(data=tips, aes(color=Source), size=3, hjust=0, offset = +0.1) +
+tips$label <- paste(tips$X.The.names.to.be.displayed.on.the.phylogeny, tips$Country, tips$Host,  sep = '   ')
+t <- t + geom_tiplab(data=tips, aes(color="black"), size=3, hjust=0, offset = +0.05) +
 scale_color_manual(values=c("gray39","black")) # colours as defined by col2rgb
 
-# Add in a further set of labels
-tree_mod <- data.frame(t$data)
-tree_mod$label <- tips$pathotype
-t <- t + geom_tiplab(data=tree_mod, aes(label=label, color=Source), size=3, hjust=0, offset = +2.5) +
+# Add in a further set of labels that can also be used to extend the right hand plot area
+#tree_mod <- data.frame(t$data)
+#tree_mod$label <- paste(tips$Country, tips$Host, sep = '   ')
+t <- t + geom_tiplab(data=tips, aes(label="", color="black"), size=3, hjust=0, offset = +0.75) +
 scale_color_manual(values=c("gray39","black"))
 
-t <- t + geom_tippoint(data=tips, aes(shape=MAT), size=2)
+t <- t + geom_tippoint(data=tips, aes(shape=Grasshopper..Grh.), size=2)
 
 # Format nodes by values
 nodes <- data.frame(t$data)
@@ -288,224 +326,12 @@ t <- t + geom_nodelab(data=nodes, size=2, hjust=-0.05) # colours as defined by c
 
 
 # Annotate a clade with a bar line
-# t <- t + geom_cladelabel(node=42, label='sect. Alternaria', align=T, colour='black', offset=-1.5)
-# t <- t + geom_cladelabel(node=70, label='gaisen clade', align=T, colour='black', offset=-4.5)
-# t <- t + geom_cladelabel(node=51, label='tenuissima clade', align=T, colour='black', offset=-4.5)
-# t <- t + geom_cladelabel(node=45, label='arborescens clade', align=T, colour='black', offset=-4.5)
-t <- t + geom_cladelabel(node=43, label='sect. Alternaria', align=T, colour='black', offset=-0.0)
-t <- t + geom_cladelabel(node=70, label='gaisen clade', align=T, colour='black', offset=-2.0)
-t <- t + geom_cladelabel(node=46, label='tenuissima clade', align=T, colour='black', offset=-2.0)
-t <- t + geom_cladelabel(node=65, label='arborescens clade', align=T, colour='black', offset=-2.0)
+# t <- t + geom_cladelabel(node=43, label='sect. Alternaria', align=T, colour='black', offset=-0.0)
+# t <- t + geom_cladelabel(node=70, label='gaisen clade', align=T, colour='black', offset=-2.0)
+# t <- t + geom_cladelabel(node=46, label='tenuissima clade', align=T, colour='black', offset=-2.0)
+# t <- t + geom_cladelabel(node=65, label='arborescens clade', align=T, colour='black', offset=-2.0)
 
 # Save as PDF and force a 'huge' size plot
-t <- ggsave("expanded/tree5.pdf", width =30, height = 30, units = "cm", limitsize = FALSE)
+ggsave("Mg.pdf", t, width =20, height = 30, units = "cm", limitsize = FALSE)
 
-````
-
-
-<!--
-
-```bash
-# For closely related organisms (same species etc.): identify genes with high nucleotide diversity (Pi) and average number of pairwise differences, medium number of segregating sites
-# (avoid alignments with low homology and lots of phylogenetically uninformative singletons).
-# For analyses involving cross-species comparisons involving highly diverged sequences with high nucleotide diversity
-# (e.g. 0.1<Pi<0.4), looking for genes with the lowest number of segregating sites.
-AlignDir=analysis/popgen/busco_phylogeny/alignments
-CurDir=$PWD
-cd $AlignDir
-
-# pip install dendropy --user
-for Alignment in $(ls *aligned.fasta); do
-ProgDir=/home/armita/git_repos/emr_repos/scripts/popgen/phylogenetics
-python $ProgDir/calculate_nucleotide_diversity.py $Alignment
-Busco=$(echo $Alignment | cut -f1 -d '_')
-mv sequence_stats.txt "$Busco"_seqeunce_stats.txt
-mv excel_stats.txt "$Busco"_excel_stats.txt
-mkdir -p ../phylogeny
-## Copy FASTA files of the aligments into a new directory
-cp $Alignment ../phylogeny/.
-done
-
-cd $CurDir
-```
-
-Visually inspect the alignments of selected genes (genes_selected_for_phylogeny.txt) to be used in
-constructing the phylogenies and trim them as necessary in MEGA7.
-Copy the relevant trimmed alignment FASTA files into
-
-```bash
-  # mkdir $CurDir/beast_runs/candidates/select/trimmed
-```
-
-
-##PartitionFinder (nucleotide sequence evolution model)
-
-```bash
-cd analysis/popgen/busco_phylogeny/phylogeny
-
-config_template=/home/sobczm/bin/PartitionFinder1.1.1/partition_finder.cfg
-ct=$(basename "$config_template")
-
-mkdir NEXUS
-
-# prepare directory for PartitionFinder run:
-for f in $(ls *fasta); do
-sed -i 's/:/_/g' $f
-c="$(cat $f | awk 'NR%2==0' | awk '{print length($1)}' | head -1)"
-p="${f%.fasta}.phy"
-n="${f%.fasta}.NEXUS"
-dir="${f%.fasta}"
-
-mkdir $dir
-cp $config_template $dir/.
-
-# Substitute the name of the alignment file and the sequence length in the config file to become correct for the current run.
-sed -i 's,^\(alignment = \).*,\1'"$p;"',' $dir/$ct
-sed -i 's,^\(Gene1_pos1 = \).*,\1'"1-$c\\\3;"',' $dir/$ct
-sed -i 's,^\(Gene1_pos2 = \).*,\1'"2-$c\\\3;"',' $dir/$ct
-sed -i 's,^\(Gene1_pos3 = \).*,\1'"3-$c\\\3;"',' $dir/$ct
-
-# Convert FASTA to phylip for the Partition Finder run
-ProgDir=/home/armita/git_repos/emr_repos/scripts/popgen/phylogenetics
-$ProgDir/fasta2phylip.pl $f>$p
-mv $p $dir
-
-# Convert FASTA to NEXUS for the BEAST run
-$ProgDir/Fasta2Nexus.pl $f>$dir/$n
-
-#Problems running PartitionFinder on the cluster. May have to be run locally on your Mac or Windows machine.
-# qsub $ProgDir/sub_partition_finder.sh $dir
-done
-```
-
-Partition finder wasnt run on the cluster. As such fasta alignment files were
-downloaded to the local machine where partitionfinder was run
-patritionfinder2 was downloaded from:
-http://www.robertlanfear.com/partitionfinder/
-
-and the anaconda libraries to support it were downloaded from:
-https://www.continuum.io/downloads#macos
-
-
-copy the fasta files and the partitionfinder config files to
-your local computer
-
-```bash
-cd Users/armita/Downloads
-scp -r cluster:/home/groups/harrisonlab/project_files/idris/analysis/popgen/busco_phylogeny/phylogeny .
-```
-
-Alignments were loaded into Geneious where they were visualised and manually sorted into
-three categories:
-* Good - All sequences present no trimming needed
-* Trim - All sequences present short regions may need trimming from the beginning / end of the alignment before use in phylogenetics
-* Bad - a region of one or more sequences is missing or the sequences / alignment is not appropriate for phylogenetics
-
-These alignments were then exported from Geneious into the following folders:
-
-```bash
-cd Users/armita/Downloads/phylogeny
-mkdir good_alignments
-mkdir trim_alignments
-mkdir bad_alignments
-```
-
-Alignments within the "good alignments" directory were taken forward for further
-analysis
-
-```bash
-  for Dir in $(ls -d *_alignments); do
-    for Alignment in $(ls $Dir/*_appended_aligned.phy); do
-      Prefix=$(echo $Alignment | cut -f2 -d '/' | sed 's/.phy//g')
-      echo $Prefix
-      cp $Prefix/$Prefix.NEXUS $Dir/$Prefix/.
-      cp -r $Prefix $Dir/.
-      /Users/armita/anaconda2/bin/python ../partitionfinder-2.1.1/PartitionFinder.py $Dir/$Prefix --no-ml-tree --force-restart
-    done
-  done > log.txt
-```
-
-
-Upload partition models back to the cluster:
-
-```bash
-ClusterDir=/home/groups/harrisonlab/project_files/idris/analysis/popgen/busco_phylogeny/phylogeny
-scp -r bad_alignments cluster:$ClusterDir/.
-```
-
-
-## Preparing to run BEAST
-
-
-Using trimmed FASTA alignments and nucleotide substitution models identified with PartitionFinder:
-create an XML input file using BEAUTi, with StarBeast template.
-
-Prepare a 30 loci dataset, in addition to a 5 loci subset to compare convergence.
-
-Run after qlogin into a worker node (BEAST does not find BEAGLE libraries when using qsub -
-as the BEAST package is quite fiddly, may troubleshoot it later when necessary.
-
-StarBeast settings used here:
-* Substitution rate: default HKY
-* Strict clock
-* Species Tree Population Size: Linear with constant root
-* Yule prior on species tree
-* Chain length: 300 million (this may vary, change run convergence with Tracer during the run to establish the number of iterations required
-* Tracer: /home/sobczm/bin/beast/Tracer_v1.6/bin/tracer
-some runs may never converge)
-* Store every: 10000
-
-```bash
-
-cd /home/groups/harrisonlab/project_files/idris
-
-
-for File in $(ls analysis/popgen/busco_phylogeny/phylogeny/good_alignments/*_appended_aligned/analysis/best_scheme.txt); do
-Busco=$(echo $File | cut -f6 -d '/' | cut -f1 -d '_')
-Model=$(cat $File | grep -A1 'Best Model' | tail -n1 | cut -f2 -d '|')
-printf "$Busco\t$Model\n"
-done
-
-# Edit NEXUS files:
-for Nexus in $(ls analysis/popgen/busco_phylogeny/phylogeny/good_alignments/*_appended_aligned/*_appended_aligned.NEXUS); do
-  sed -i -r "s/^.*_P\./P./g" $Nexus
-  sed -i -r "s/_contig.*\t/\t/g" $Nexus
-  sed -i -r "s/_NODE.*\t/\t/g" $Nexus
-done
-
-# OUtputs of partitionfinder were used to set models
-# of DNA evolution in Beauti, as described on:
-# http://www.robertlanfear.com/partitionfinder/faq/#toc-beast
-# CHain length was modified from 10000000 to 500000000 as determined
-# by a first run of beast where tracer reported the estimated sasmple size to be below 100 (3) - increase by 50 fold.
-
-# Run Beauti
-NexusFiles=$(ls analysis/popgen/busco_phylogeny/phylogeny/good_alignments/*_appended_aligned/*.NEXUS | sed -e 's/^/ -nex /g' | tr -d '\n')
-OutFile=$(echo $Nexus | sed 's/.NEXUS/.xml/g')
-ProgDir=/home/sobczm/bin/beast/BEASTv2.4.2/bin
-$ProgDir/beauti -template StarBeast.xml $NexusFiles
-
-
-
-
-qlogin -pe smp 8
-InXML=analysis/popgen/busco_phylogeny/phylogeny/Pcac_beauti_starBEAST2.xml
-OutDir=$(dirname $InXML)"/BEAST4"
-mkdir -p $OutDir
-ProgDir=/home/sobczm/bin/beast/BEASTv2.4.2/bin
-$ProgDir/beast -threads 8 -prefix $OutDir $InXML > $OutDir/log.txt
-# java -Djava.library.path="C:\Program Files (x86)\Common Files\libhmsbeagle-1.0" -jar "/BEAST175/lib/beast.jar"
-
-#After the run, check convergence with Tracer, summarise the final tree with TreeAnnotator
-for Tree in $(ls $OutDir/*.trees); do
-BurnIn=10 # percentage of states to be considered as burnin
-SumTree=$(echo $Tree | sed 's/.trees/_summary.tree/g')
-ProgDir=/home/sobczm/bin/beast/BEASTv2.4.2/bin
-$ProgDir/treeannotator -heights median -burnin $BurnIn $Tree $SumTree
-done
-
-#Visualise and beautify the final tree (suffix "summary") with FigTree
-FigTree=/home/sobczm/bin/FigTree_v1.4.2/bin/figtree
-$FigTree
-
-``` -->
+```` -->
