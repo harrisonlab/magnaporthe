@@ -268,6 +268,15 @@ Run Astral to build a consensus phylogeny from a collective set of
 Tutorial tips:
 https://github.com/smirarab/ASTRAL/blob/master/astral-tutorial.md#running-with-unresolved-gene-trees
 
+```
+Branch length and support
+
+ASTRAL measures branch length in coalescent units and also has a fast way of measuring support without a need for bootstrapping. The algorithms to compute branch lengths and support and the meaning of support outputted is further described in this paper. We will return to these in later sections. Some points have to be emphasized:
+
+ASTRAL only estimates branch lengths for internal branches and those terminal branches that correspond to species with more than one individuals sampled.
+Branch lengths are in coalescent units and are a direct measure of the amount of discordance in the gene trees. As such, they are prone to underestimation because of statistical noise in gene tree estimation.
+Branch support values measure the support for a quadripartition (the four clusters around a branch) and not the bipartition, as is commonly done.
+```
 
 ```bash
 OutDir=analysis_AA/popgen/publication_busco_phylogeny_final/ASTRAL
